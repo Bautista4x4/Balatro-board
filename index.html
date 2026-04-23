@@ -380,14 +380,17 @@ function syncItem(item) {
         const data = { ...item };
         if (data.tableData) { data._t = JSON.stringify(data.tableData); delete data.tableData; }
         if (data.todoList)  { data._td = JSON.stringify(data.todoList); delete data.todoList; }
-        setDoc(doc(db,'balatro',currentSeed,'cards',item.id), data, { merge:true }).catch(console.error);
+        
+        // 🛠️ FIX 1: Firestore colapsa si hay valores "undefined". Los eliminamos:
+        Object.keys(data).forEach(key => { if (data[key] === undefined) delete data[key]; });
+
+        // 🛠️ FIX 2: Obligamos a la app a mostrar el error en pantalla si Firebase rebota el dato
+        setDoc(doc(db,'balatro',currentSeed,'cards',item.id), data, { merge:true })
+            .catch(err => { 
+                console.error("ERROR DE FIREBASE:", err); 
+                toast('❌ Firebase rechazó la carta: ' + err.message, 5000); 
+            });
     } else { saveLocal(); bcSend(); }
-}
-function removeItem(id) {
-    items = items.filter(i => i.id !== id);
-    if (fbActive && fbUser) deleteDoc(doc(db,'balatro',currentSeed,'cards',id)).catch(console.error);
-    else { saveLocal(); bcSend(); }
-    updateCount();
 }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 
