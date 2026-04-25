@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Balatro Board Pro</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#e64848;--blue:#3d64e6;--gold:#f1c40f;--panel:#2a2d3e;--bw:4px;--grid-color:rgba(255,255,255,.04);}
+*{box-sizing:border-box;}
+body{font-family:'Pixelify Sans',cursive;background:#0d1117;margin:0;overflow:hidden;color:#fff;user-select:none;touch-action:none;width:100vw;height:100vh;}
+
+/* BG */
+@keyframes swirl{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+.bg{background:linear-gradient(-45deg,#0b2e20,#0a1b2a,#1a0a2a,#112211);background-size:400% 400%;animation:swirl 20s ease infinite;position:fixed;inset:0;z-index:-2;}
+.scanlines{background:linear-gradient(rgba(0,0,0,0) 50%,rgba(0,0,0,.22) 50%);background-size:100% 4px;position:fixed;inset:0;pointer-events:none;opacity:.4;z-index:9999;}
+.vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle,rgba(0,0,0,0) 50%,rgba(0,0,0,.75) 100%);z-index:-1;}
+
+/* Botones & paneles */
+.panel{background:var(--panel);border:var(--bw) solid #454b66;border-radius:12px;box-shadow:0 15px 25px rgba(0,0,0,.8),inset 0 0 10px rgba(0,0,0,.5);}
+.btn{background:var(--red);border:var(--bw) solid #ff7b7b;border-bottom-width:6px;border-radius:8px;color:#fff;text-transform:uppercase;text-shadow:2px 2px 0 rgba(0,0,0,.5);cursor:pointer;transition:transform .1s,filter .1s;font-family:'Pixelify Sans',cursive;}
+.btn:hover:not(:disabled){filter:brightness(1.2);}
+.btn:active:not(:disabled){border-bottom-width:var(--bw);transform:translateY(2px);}
+.btn.blue{background:var(--blue);border-color:#7b9aff;}
+.btn.green{background:#27ae60;border-color:#52be80;}
+.btn.purple{background:#8e44ad;border-color:#a569bd;}
+.btn.orange{background:#e67e22;border-color:#f39c12;}
+.btn.gray{background:#555;border-color:#888;}
+.btn.teal{background:#16a085;border-color:#1abc9c;}
+.btn:disabled{filter:grayscale(1);opacity:.6;cursor:not-allowed;}
+input,textarea,select{background:#151720;border:3px solid #333852;border-radius:6px;padding:8px 10px;font-family:'Pixelify Sans',cursive;font-size:1rem;color:#fff;outline:none;width:100%;}
+input[type="color"]{padding:0;height:36px;cursor:pointer;}
+input[type="range"]{padding:4px;height:28px;}
+
+/* Workspace */
+#workspace{position:fixed;inset:0;overflow:hidden;}
+/* Grid background */
+#board{
+  position:absolute;width:30000px;height:30000px;transform-origin:0 0;will-change:transform;
+  background-image:radial-gradient(circle,rgba(255,255,255,.12) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+#board.no-grid{background-image:none;}
+#board.grid-lines{background-image:linear-gradient(var(--grid-color) 1px,transparent 1px),linear-gradient(90deg,var(--grid-color) 1px,transparent 1px);background-size:40px 40px;}
+
+/* Cartas */
+.card{position:absolute;min-width:230px;min-height:220px;border-radius:12px;cursor:grab;background-size:cover;background-position:center;border:4px solid #fff;box-shadow:-5px 10px 15px rgba(0,0,0,.5);display:flex;flex-direction:column;overflow:visible;transition:box-shadow .2s;}
+.card.dragging{cursor:grabbing;z-index:1000!important;filter:brightness(1.07);box-shadow:-12px 22px 28px rgba(0,0,0,.7);}
+.card.resizing{z-index:1000!important;}
+.card.collapsed .card-body-inner{display:none;}
+.card.collapsed{min-height:0;}
+.card.locked{cursor:default;}
+.card.selected{outline:3px solid #f1c40f;outline-offset:3px;}
+.card-joker{background-color:#2b2b2b;border-color:#d4af37;}
+.card-tarot{background-color:#4a235a;border-color:#a569bd;}
+.card-planet{background-color:#154360;border-color:#5dade2;}
+.card-spectral{background-color:#1b2631;border-color:#76b7b0;}
+.card-body{background:rgba(0,0,0,.62);backdrop-filter:blur(3px);margin:6px;padding:10px;border-radius:8px;flex-grow:1;display:flex;flex-direction:column;overflow:auto;}
+
+/* Etiqueta de color en carta */
+.card-badge{position:absolute;top:-4px;left:50%;transform:translateX(-50%);width:60%;height:6px;border-radius:3px;pointer-events:none;}
+
+/* Botones de acción */
+.act-btn{position:absolute;width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;z-index:20;transition:transform .15s;pointer-events:auto;}
+.act-btn:hover{transform:scale(1.18);}
+.act-btn.del{background:#c0392b;top:-12px;right:-12px;}
+.act-btn.edt{background:#d4a017;color:#000;top:-12px;left:-12px;}
+.act-btn.dup{background:#2980b9;bottom:-12px;left:-12px;}
+.act-btn.col{background:#27ae60;bottom:-12px;right:-12px;font-size:10px;}
+.resize-handle{position:absolute;bottom:2px;right:2px;width:20px;height:20px;cursor:se-resize;z-index:30;background:linear-gradient(135deg,transparent 45%,rgba(255,255,255,.7) 45%);border-radius:0 0 8px 0;}
+
+/* Tablas */
+.tbl{width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px;background:#fff;color:#000;}
+.tbl th{border:1px solid #ccc;border-top:4px solid;padding:5px;text-align:left;}
+.tbl td{border:1px solid #ddd;padding:5px;min-width:50px;background:#fff;outline:none;}
+.tbl td:focus,.tbl th:focus{background:#dceeff;outline:2px solid #3d64e6;}
+.tbl-btn{background:#333;color:#fff;border:2px solid #555;padding:2px 7px;border-radius:4px;font-size:11px;cursor:pointer;font-family:'Pixelify Sans',cursive;}
+.tbl-btn:hover{background:#555;}
+
+/* Progress bar todo */
+.todo-progress{height:6px;border-radius:3px;background:#1a1c23;margin-bottom:8px;overflow:hidden;}
+.todo-progress-bar{height:100%;background:linear-gradient(90deg,#27ae60,#52be80);border-radius:3px;transition:width .4s ease;}
+
+/* Timer card */
+.timer-display{font-size:3rem;font-weight:700;color:#f1c40f;text-align:center;letter-spacing:.05em;text-shadow:0 0 20px rgba(241,196,15,.5);}
+.timer-display.running{color:#52be80;text-shadow:0 0 20px rgba(82,190,128,.5);}
+.timer-display.ended{color:#e74c3c;animation:blink 1s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.timer-btn{background:#333;color:#fff;border:2px solid #555;padding:4px 10px;border-radius:5px;font-family:'Pixelify Sans',cursive;cursor:pointer;font-size:13px;}
+.timer-btn:hover{background:#555;}
+
+/* HUD superior */
+#hud-top{position:fixed;top:0;left:0;right:0;z-index:500;display:flex;align-items:center;justify-content:space-between;padding:8px 12px;gap:8px;flex-wrap:wrap;background:linear-gradient(to bottom,rgba(13,17,23,.95) 60%,transparent);pointer-events:none;}
+#hud-top>*{pointer-events:auto;}
+.hud-chip{background:rgba(42,45,62,.92);border:2px solid #454b66;border-radius:8px;padding:4px 10px;font-size:.9rem;white-space:nowrap;}
+.sync-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+#hud-bot{position:fixed;bottom:16px;left:0;right:0;z-index:500;display:flex;justify-content:center;gap:10px;pointer-events:none;}
+#hud-bot>*{pointer-events:auto;}
+
+/* Minimapa */
+#minimap{position:fixed;bottom:72px;right:12px;z-index:500;background:rgba(13,17,23,.92);border:2px solid #454b66;border-radius:8px;overflow:hidden;cursor:pointer;}
+.mm-lbl{position:absolute;top:3px;left:6px;font-size:9px;color:#555;pointer-events:none;}
+
+/* Paneles laterales */
+.side-panel{position:fixed;top:56px;right:12px;width:295px;max-height:calc(100vh-170px);background:rgba(30,33,46,.97);border:3px solid #454b66;border-radius:12px;padding:12px;z-index:600;display:flex;flex-direction:column;gap:8px;overflow-y:auto;backdrop-filter:blur(12px);}
+.side-panel.hidden{display:none!important;}
+.s-item{background:rgba(21,23,32,.8);border:2px solid #333852;border-radius:6px;padding:7px 9px;cursor:pointer;transition:border-color .2s;}
+.s-item:hover{border-color:#f1c40f;}
+
+/* Toast */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(42,45,62,.97);border:3px solid #454b66;border-radius:10px;padding:8px 20px;z-index:9997;font-size:.95rem;white-space:nowrap;box-shadow:0 8px 20px rgba(0,0,0,.5);animation:fiu .25s ease;}
+@keyframes fiu{from{opacity:0;transform:translateX(-50%) translateY(10px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+
+/* Highlight pulsante */
+@keyframes hpulse{0%,100%{box-shadow:-5px 10px 15px rgba(0,0,0,.5);}50%{box-shadow:0 0 0 5px rgba(241,196,15,.9),-5px 10px 15px rgba(0,0,0,.5);}}
+.highlight{animation:hpulse .6s ease 3;}
+
+/* Modal sync */
+#modal-sync .step{background:rgba(21,23,32,.8);border:2px solid #333852;border-radius:8px;padding:10px 12px;}
+#modal-sync .sn{display:inline-flex;align-items:center;justify-content:center;background:var(--gold);color:#000;width:22px;height:22px;border-radius:50%;font-weight:700;margin-right:8px;flex-shrink:0;font-size:.85rem;}
+#modal-sync code{background:#0d1117;border:1px solid #333;border-radius:3px;padding:1px 5px;font-family:monospace;color:#7b9aff;font-size:.82rem;}
+#modal-sync a{color:#5dade2;text-decoration:underline;}
+#modal-sync pre{background:#0d1117;border:1px solid #333;border-radius:6px;padding:8px;font-size:.78rem;color:#52be80;overflow-x:auto;font-family:monospace;white-space:pre-wrap;}
+
+/* Color paleta cartas */
+.clr-swatch{width:24px;height:24px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:transform .15s,border-color .15s;flex-shrink:0;}
+.clr-swatch:hover,.clr-swatch.active{transform:scale(1.2);border-color:#fff;}
+
+/* Indicador de conexión animado */
+@keyframes pulse-ring{0%{transform:scale(.95);box-shadow:0 0 0 0 rgba(39,174,96,.7);}70%{transform:scale(1);box-shadow:0 0 0 8px rgba(39,174,96,0);}100%{transform:scale(.95);}}
+.dot-pulse{animation:pulse-ring 1.5s infinite;}
+
+/* Snap grid indicator */
+#snap-indicator{position:fixed;bottom:72px;left:12px;z-index:500;background:rgba(42,45,62,.92);border:2px solid #454b66;border-radius:8px;padding:4px 10px;font-size:.85rem;display:none;}
+#snap-indicator.visible{display:block;}
+
+@media(max-width:600px){
+  .side-panel{width:calc(100vw - 24px); top: auto; bottom: 80px; max-height: 50vh;}
+  #minimap{display:none;}
+  #hud-top { padding: 4px; }
+  #hud-top .hud-chip:not(.always){display:none;}
+  #hud-top .btn { padding: 4px 8px; font-size: 11px; margin-bottom: 2px; }
+  #btn-add { font-size: 14px; padding: 10px 16px; }
+  .panel { padding: 12px; }
+  .card { min-width: 180px; min-height: 180px; }
+  #snap-indicator { bottom: 16px; left: 12px; }
+}
+</style>
+</head>
+<body>
+<div class="bg"></div><div class="vignette"></div><div class="scanlines"></div>
+
+<!-- ═══════════ LOGIN ═══════════ -->
+<div id="screen-login" class="fixed inset-0 flex items-center justify-center z-[800]">
+  <div class="panel p-7 w-full max-w-sm text-center mx-4">
+    <h1 class="text-5xl mb-1 text-[#f1c40f]" style="text-shadow:0 4px 0 #b38600,0 8px 12px rgba(0,0,0,.8)">BALATRO</h1>
+    <h2 class="text-xl mb-5 tracking-widest text-gray-300">BOARD PRO v4</h2>
+    <div id="status-box" class="mb-4 text-sm bg-[#151720] border-2 border-[#333852] p-2 rounded text-yellow-400 min-h-[36px] flex items-center justify-center">
+      <span class="animate-pulse">Iniciando…</span>
+    </div>
+    <p class="text-sm mb-1 text-left text-gray-300">Semilla del Mundo:</p>
+    <input type="text" id="input-seed" placeholder="EJ: MISNOTAS" class="text-center text-xl mb-3 uppercase tracking-widest" value="PRUEBA">
+    <p class="text-xs text-gray-500 mb-4 text-left">Misma semilla + Firebase = tablero sincronizado entre dispositivos en tiempo real.</p>
+    <button id="btn-enter" class="btn w-full p-3 text-xl font-bold mb-2">▶ JUGAR</button>
+    <button id="btn-open-sync-login" class="btn orange w-full p-2 text-base">⚙ Configurar Sincronización</button>
+  </div>
+</div>
+
+<!-- ═══════════ JUEGO ═══════════ -->
+<div id="screen-game" class="hidden">
+
+  <!-- HUD superior -->
+  <div id="hud-top">
+    <div class="flex gap-2 items-center flex-wrap">
+      <div class="hud-chip always">🌍 <span id="hud-seed" class="text-[#f1c40f]"></span></div>
+      <div class="hud-chip always text-xs" id="hud-sync"><span class="sync-dot bg-gray-500"></span>Local</div>
+      <div class="hud-chip text-xs">🃏<span id="hud-count">0</span></div>
+      <div class="hud-chip text-xs">🔍<span id="hud-zoom">100</span>%</div>
+    </div>
+    <div class="flex gap-2 items-center flex-wrap">
+      <button class="btn purple px-3 py-1 text-sm" id="btn-srch" title="Buscar (Ctrl+F)">🔍</button>
+      <button class="btn orange px-3 py-1 text-sm" id="btn-sync-panel" title="Sync">📡</button>
+      <button class="btn teal px-3 py-1 text-sm" id="btn-settings" title="Opciones">⚙️</button>
+      <button class="btn green px-3 py-1 text-sm" id="btn-export" title="Exportar">💾</button>
+      <button class="btn blue px-3 py-1 text-sm" id="btn-import-btn" title="Importar">📂</button>
+      <button class="btn gray px-3 py-1 text-sm" id="btn-center" title="Centrar (Ctrl+0)">🎯</button>
+      <button class="btn gray px-3 py-1 text-sm" id="btn-exit">✖</button>
+    </div>
+  </div>
+
+  <!-- Panel búsqueda -->
+  <div id="panel-srch" class="side-panel hidden">
+    <div class="flex justify-between items-center">
+      <span class="text-[#f1c40f] font-bold">🔍 Buscar</span>
+      <button id="btn-srch-close" class="text-gray-400 hover:text-white text-lg">✖</button>
+    </div>
+    <input type="text" id="srch-input" placeholder="Título o contenido…">
+    <div class="flex gap-1 flex-wrap">
+      <button class="fbtn btn gray px-2 py-1 text-xs" data-f="all">Todas</button>
+      <button class="fbtn btn px-2 py-1 text-xs" data-f="text">Texto</button>
+      <button class="fbtn btn blue px-2 py-1 text-xs" data-f="table">Tabla</button>
+      <button class="fbtn btn green px-2 py-1 text-xs" data-f="todo">Tareas</button>
+      <button class="fbtn btn purple px-2 py-1 text-xs" data-f="rng">Dado</button>
+      <button class="fbtn btn orange px-2 py-1 text-xs" data-f="timer">Timer</button>
+    </div>
+    <div id="srch-results" class="flex flex-col gap-2"></div>
+  </div>
+
+  <!-- Panel sync -->
+  <div id="panel-sync" class="side-panel hidden">
+    <div class="flex justify-between items-center">
+      <span class="text-[#f1c40f] font-bold">📡 Sincronización</span>
+      <button id="btn-sync-close-p" class="text-gray-400 hover:text-white text-lg">✖</button>
+    </div>
+    <div id="sync-detail-panel" class="text-sm text-gray-300 leading-relaxed space-y-1"></div>
+    <button class="btn orange w-full py-2 text-sm" id="btn-open-sync-game">Configurar Firebase</button>
+    <button class="btn gray w-full py-2 text-xs" id="btn-forget-fb">Olvidar config guardada</button>
+  </div>
+
+  <!-- Panel ajustes -->
+  <div id="panel-settings" class="side-panel hidden">
+    <div class="flex justify-between items-center">
+      <span class="text-[#f1c40f] font-bold">⚙️ Opciones</span>
+      <button id="btn-settings-close" class="text-gray-400 hover:text-white text-lg">✖</button>
+    </div>
+    <div class="text-xs text-gray-400">FONDO DE PIZARRA</div>
+    <div class="flex gap-2 flex-wrap">
+      <button class="bg-btn btn gray px-2 py-1 text-xs" data-bg="dots">· Puntos</button>
+      <button class="bg-btn btn gray px-2 py-1 text-xs" data-bg="lines">⊞ Líneas</button>
+      <button class="bg-btn btn gray px-2 py-1 text-xs" data-bg="none">✕ Ninguno</button>
+    </div>
+    <div class="flex items-center justify-between">
+      <span class="text-xs text-gray-400">SNAP A CUADRÍCULA</span>
+      <button id="btn-snap" class="btn gray px-3 py-1 text-xs">OFF</button>
+    </div>
+    <div class="flex items-center justify-between">
+      <span class="text-xs text-gray-400">BLOQUEAR PIZARRA</span>
+      <button id="btn-lock" class="btn gray px-3 py-1 text-xs">OFF</button>
+    </div>
+    <div class="flex items-center justify-between">
+      <span class="text-xs text-gray-400">SCANLINES</span>
+      <button id="btn-scanlines" class="btn gray px-3 py-1 text-xs">ON</button>
+    </div>
+    <div class="text-xs text-gray-400 mt-1">ZOOM</div>
+    <input type="range" id="zoom-slider" min="20" max="300" value="100" class="w-full">
+    <div class="text-xs text-gray-400 mt-1">ACCIONES</div>
+    <button id="btn-undo" class="btn gray w-full py-1 text-xs">↩ Deshacer último borrado (Ctrl+Z)</button>
+    <button id="btn-select-all" class="btn gray w-full py-1 text-xs">☐ Seleccionar todas</button>
+    <button id="btn-delete-selected" class="btn w-full py-1 text-xs">🗑 Eliminar seleccionadas</button>
+    <button id="btn-clear-all" class="btn w-full py-1 text-xs">🗑 Eliminar TODAS las cartas</button>
+  </div>
+
+  <!-- Workspace -->
+  <div id="workspace"><div id="board"></div></div>
+
+  <!-- Minimapa -->
+  <div id="minimap" title="Clic para navegar">
+    <canvas id="mm-canvas" width="160" height="115"></canvas>
+    <span class="mm-lbl">MAPA</span>
+  </div>
+
+  <!-- Snap indicator -->
+  <div id="snap-indicator">🧲 Snap ON</div>
+
+  <!-- Botón añadir + undo quick -->
+  <div id="hud-bot">
+    <button id="btn-add" class="btn blue px-8 py-3 text-xl rounded-xl shadow-2xl">+ Añadir Carta</button>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL CARTA ═══════════ -->
+<div id="modal-card" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[700] hidden overflow-y-auto p-4">
+  <div class="panel p-5 w-full max-w-md my-4">
+    <h2 id="mc-title" class="text-2xl text-center mb-4 pb-2 border-b-2 border-gray-600 text-[#f1c40f]">Nueva Carta</h2>
+    <div class="flex flex-col gap-3">
+      <input type="text" id="c-title" placeholder="Nombre de la carta…">
+
+      <!-- Apariencia -->
+      <div class="bg-[#151720] border-2 border-[#333852] p-3 rounded-lg">
+        <label class="text-gray-400 text-xs block mb-2">APARIENCIA</label>
+        <select id="c-mat" class="mb-2">
+          <option value="preset">Estándar</option>
+          <option value="custom">Holográfica (Custom)</option>
+        </select>
+        <div id="ctrl-preset"><select id="c-preset">
+          <option value="card-joker">Comodín (Joker)</option>
+          <option value="card-tarot">Carta del Tarot</option>
+          <option value="card-planet">Carta Planetaria</option>
+          <option value="card-spectral">Carta Espectral</option>
+        </select></div>
+        <div id="ctrl-custom" class="hidden space-y-2 mt-2">
+          <div class="flex items-center gap-3"><span class="text-gray-300 text-sm">Color:</span><input type="color" id="c-color" value="#8b2a2a" class="h-9 w-20"></div>
+          <div class="relative"><input type="file" id="c-texture" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer"><button class="btn blue w-full py-2 text-sm pointer-events-none">📷 Subir Textura</button></div>
+        </div>
+        <!-- Badge color -->
+        <div class="mt-2">
+          <label class="text-gray-400 text-xs block mb-1">ETIQUETA DE COLOR</label>
+          <div class="flex gap-2 flex-wrap">
+            <div class="clr-swatch active" data-clr="" style="background:#444;border-color:#888" title="Sin color"></div>
+            <div class="clr-swatch" data-clr="#e74c3c" style="background:#e74c3c"></div>
+            <div class="clr-swatch" data-clr="#e67e22" style="background:#e67e22"></div>
+            <div class="clr-swatch" data-clr="#f1c40f" style="background:#f1c40f"></div>
+            <div class="clr-swatch" data-clr="#27ae60" style="background:#27ae60"></div>
+            <div class="clr-swatch" data-clr="#3d64e6" style="background:#3d64e6"></div>
+            <div class="clr-swatch" data-clr="#8e44ad" style="background:#8e44ad"></div>
+            <div class="clr-swatch" data-clr="#1abc9c" style="background:#1abc9c"></div>
+            <div class="clr-swatch" data-clr="#ecf0f1" style="background:#ecf0f1"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contenido -->
+      <div class="bg-[#151720] border-2 border-[#333852] p-3 rounded-lg">
+        <label class="text-gray-400 text-xs block mb-2">TIPO DE CONTENIDO</label>
+        <select id="c-ctype" class="mb-2">
+          <option value="text">📝 Texto</option>
+          <option value="table">📊 Tabla</option>
+          <option value="todo">✅ Lista de Tareas</option>
+          <option value="rng">🎲 Dado / Azar</option>
+          <option value="timer">⏱️ Temporizador</option>
+        </select>
+        <textarea id="c-desc" placeholder="Descripción…" class="h-20 resize-none"></textarea>
+        <div id="ctrl-table" class="hidden space-y-2 mt-1">
+          <div class="flex items-center gap-2"><span class="text-gray-400 text-xs flex-1">Color cabecera:</span><input type="color" id="c-tbg" value="#27ae60" class="h-8 w-14"></div>
+          <div class="flex items-center gap-2"><span class="text-gray-400 text-xs flex-1">Color borde:</span><input type="color" id="c-tborder" value="#2852ff" class="h-8 w-14"></div>
+        </div>
+        <div id="ctrl-rng" class="hidden flex items-center gap-3 mt-1">
+          <span class="text-gray-400 text-xs">Caras:</span>
+          <input type="number" id="c-rmax" value="6" min="2" max="9999" class="w-20 py-1">
+        </div>
+        <div id="ctrl-todo" class="hidden mt-1"><p class="text-gray-500 text-xs">La lista se crea vacía.</p></div>
+        <div id="ctrl-timer" class="hidden mt-1 space-y-2">
+          <div class="flex items-center gap-2">
+            <span class="text-gray-400 text-xs flex-1">Minutos:</span>
+            <input type="number" id="c-timer-min" value="25" min="0" max="999" class="w-20 py-1">
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-gray-400 text-xs flex-1">Segundos:</span>
+            <input type="number" id="c-timer-sec" value="0" min="0" max="59" class="w-20 py-1">
+          </div>
+          <p class="text-gray-500 text-xs">Ideal para Pomodoro o sesiones de trabajo.</p>
+        </div>
+      </div>
+
+      <input type="url" id="c-link" placeholder="Link externo (opcional)…" class="text-sm">
+      <div class="flex gap-3">
+        <button id="btn-csave" class="btn flex-1 p-3 text-lg">Añadir</button>
+        <button id="btn-ccancel" class="btn gray flex-1 p-3 text-lg">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL SYNC ═══════════ -->
+<div id="modal-sync" class="fixed inset-0 bg-black/85 flex items-center justify-center z-[750] hidden overflow-y-auto p-4">
+  <div class="panel p-5 w-full max-w-lg my-4" id="modal-sync-box">
+    <h2 class="text-2xl text-center mb-1 text-[#f1c40f]">📡 Sincronización Paso a Paso</h2>
+    <p class="text-gray-500 text-center text-xs mb-4">Firebase Firestore · Gratis · En tiempo real</p>
+    <div class="flex gap-2 mb-4">
+      <button class="stab btn blue flex-1 py-2 text-sm" data-t="guide">📖 Guía</button>
+      <button class="stab btn gray flex-1 py-2 text-sm" data-t="paste">📋 Config</button>
+      <button class="stab btn gray flex-1 py-2 text-sm" data-t="test">🔌 Probar</button>
+    </div>
+
+    <!-- Guía -->
+    <div id="st-guide" class="stab-content space-y-2">
+      <div class="step"><div class="flex items-start gap-2"><span class="sn">1</span><div><p class="font-bold text-sm">Crea un proyecto Firebase gratuito</p><p class="text-gray-400 text-xs mt-1">Ve a <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a>. Haz clic en "Añadir proyecto", ponle un nombre, desactiva Google Analytics y presiona "Crear proyecto".</p></div></div></div>
+      <div class="step"><div class="flex items-start gap-2"><span class="sn">2</span><div><p class="font-bold text-sm">Añade una aplicación Web</p><p class="text-gray-400 text-xs mt-1">En la pantalla de tu nuevo proyecto, haz clic en el icono Web (<code>&lt;/&gt;</code>). Ponle un nombre a la app, haz clic en "Registrar app" y copia el código que aparece dentro de <code>firebaseConfig = { ... }</code>.</p></div></div></div>
+      <div class="step"><div class="flex items-start gap-2"><span class="sn">3</span><div><p class="font-bold text-sm">Habilita Firestore Database</p><p class="text-gray-400 text-xs mt-1">En el menú lateral izquierdo, ve a "Compilación" -> "Firestore Database". Haz clic en "Crear base de datos", selecciona la ubicación más cercana y empieza en <strong>Modo Producción</strong>.</p></div></div></div>
+      <div class="step"><div class="flex items-start gap-2"><span class="sn">4</span><div><p class="font-bold text-sm">Actualiza las reglas de seguridad</p><p class="text-gray-400 text-xs mt-1">Dentro de Firestore, ve a la pestaña "Reglas", borra todo y pega lo siguiente, luego pulsa <strong>Publicar</strong>:</p><pre>rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}</pre></div></div></div>
+      <div class="step"><div class="flex items-start gap-2"><span class="sn">5</span><div><p class="font-bold text-sm">Habilita autenticación anónima</p><p class="text-gray-400 text-xs mt-1">En el menú izquierdo, ve a "Authentication" -> "Comenzar". En la pestaña "Sign-in method", habilita el proveedor "Anónimo" y guarda.</p></div></div></div>
+      <div class="step"><div class="flex items-start gap-2"><span class="sn">6</span><div><p class="font-bold text-sm">Pega la configuración en la pestaña "Config"</p><p class="text-gray-400 text-xs mt-1">Pega el código copiado en el paso 2 en la pestaña "Config" de esta ventana. Usa la misma semilla en otros dispositivos y ¡listo!</p></div></div></div>
+    </div>
+
+    <!-- Config -->
+    <div id="st-paste" class="stab-content hidden">
+      <p class="text-gray-300 text-xs mb-2">Pega el objeto <code class="text-[#7b9aff]">firebaseConfig</code> de tu proyecto:</p>
+      <textarea id="fb-cfg-input" class="h-44 resize-none font-mono text-xs text-green-400 leading-relaxed" placeholder='{"apiKey":"AIza...","authDomain":"tu-proyecto.firebaseapp.com","projectId":"tu-proyecto","storageBucket":"tu-proyecto.appspot.com","messagingSenderId":"123456789","appId":"1:123:web:abc"}'></textarea>
+      <div id="cfg-err" class="hidden text-red-400 text-xs mt-1 leading-snug"></div>
+      <div id="cfg-ok" class="hidden text-green-400 text-xs mt-1 leading-snug"></div>
+      <button id="btn-save-fb" class="btn green w-full py-2 text-base mt-3">💾 Guardar y Conectar</button>
+    </div>
+
+    <!-- Test -->
+    <div id="st-test" class="stab-content hidden">
+      <div id="test-results" class="space-y-2 text-sm text-gray-300">
+        <p class="text-gray-500">Pulsa el botón para diagnosticar la conexión con Firebase.</p>
+      </div>
+      <button id="btn-run-test" class="btn blue w-full py-2 text-base mt-3">🔌 Ejecutar diagnóstico</button>
+    </div>
+
+    <button id="btn-sync-modal-close" class="btn gray w-full py-2 text-base mt-4">Cerrar</button>
+  </div>
+</div>
+
+<input type="file" id="import-input" accept=".json" style="display:none">
+
+<!-- ═══════════ SCRIPT ═══════════ -->
+<script type="module">
+import { initializeApp, getApps, deleteApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+// ──────────────────────────────────────────────────────
+// ESTADO GLOBAL
+// ──────────────────────────────────────────────────────
+let items = [], currentSeed = '', safeSeed = '', editingId = null, customTex = '';
+let db = null, auth = null, fbActive = false, fbUser = null, unsubSnap = null;
+
+// Drag / resize
+let dragEl = null, dragOffX = 0, dragOffY = 0;
+let resEl = null, resX0=0, resY0=0, resW0=0, resH0=0;
+
+// Pan / zoom
+let panX = 0, panY = 0, panScale = 1;
+let isPanning = false, panX0 = 0, panY0 = 0;
+let pinchIds = [], pinchDist0 = 0;
+
+// Opciones de pizarra
+let snapEnabled = false, boardLocked = false, selectedBadgeColor = '';
+let undoStack = []; // {type:'delete', item}
+let selectedIds = new Set();
+
+// Timers activos
+const timers = {};
+
+// Filtro búsqueda
+let srchFilter = 'all';
+
+const $ = id => document.getElementById(id);
+const board = $('board'), ws = $('workspace');
+const mmCanvas = $('mm-canvas'), mmCtx = mmCanvas.getContext('2d');
+const SNAP = 40; // tamaño de cuadrícula
+
+// ──────────────────────────────────────────────────────
+// FIREBASE — INICIALIZACIÓN ROBUSTA
+// ──────────────────────────────────────────────────────
+
+// Limpia TODAS las apps de Firebase existentes y crea una nueva
+async function initFB(cfg) {
+  // Destruir apps existentes para evitar "already initialized" con otra config
+  for (const app of [...getApps()]) {
+    try { await deleteApp(app); } catch {}
+  }
+  if (unsubSnap) { unsubSnap(); unsubSnap = null; }
+
+  const app = initializeApp(cfg); // nombre default = '[DEFAULT]'
+  auth = getAuth(app);
+  db   = getFirestore(app);
+
+  // Evitar que se quede en "Conectando..." si Firestore o Auth cuelgan
+  await Promise.race([
+    (async () => {
+      // Autenticación anónima
+      await signInAnonymously(auth);
+      await new Promise((resolve, reject) => {
+        const unsub = auth.onAuthStateChanged(user => {
+          unsub();
+          if (user) { fbUser = user; fbActive = true; resolve(); }
+          else reject(new Error('Auth anónima no devolvió usuario'));
+        });
+      });
+      // Test de escritura/lectura para confirmar Firestore ok
+      const testRef = doc(db, '_ping', 'test');
+      await setDoc(testRef, { ts: Date.now() });
+    })(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Tiempo de conexión agotado. Verifica tu JSON y que Firestore esté habilitado en la consola.')), 8000))
+  ]);
+
+  return true;
+}
+
+// Intenta cargar la config guardada al arrancar
+async function tryLoadSavedFB() {
+  const sources = [
+    () => { const r = localStorage.getItem('balatro_fb_cfg'); return r ? JSON.parse(r) : null; },
+    () => (typeof window.__firebase_config !== 'undefined') ? JSON.parse(window.__firebase_config) : null
+  ];
+  for (const src of sources) {
+    try {
+      const cfg = src(); if (!cfg || !cfg.apiKey || !cfg.projectId) continue;
+      await initFB(cfg);
+      setSyncDot('green', '☁️ Firebase');
+      return true;
+    } catch (e) { console.warn('Auto-load FB failed:', e.message); }
+  }
+  return false;
+}
+
+// ──────────────────────────────────────────────────────
+// ARRANQUE
+// ──────────────────────────────────────────────────────
+$('status-box').innerHTML = '<span class="animate-pulse text-yellow-400">Cargando…</span>';
+tryLoadSavedFB().then(ok => {
+  $('status-box').innerHTML = ok
+    ? '<span class="text-green-400">✅ Firebase listo — sincronización disponible</span>'
+    : '<span class="text-yellow-400">⚡ Modo local activo (sin sync)</span>';
+  setSyncDot(ok ? 'green' : 'yellow', ok ? '☁️ Firebase' : '💾 Local');
+});
+
+function setSyncDot(color, label) {
+  const C = {green:'#27ae60',yellow:'#f39c12',red:'#e74c3c',gray:'#888'};
+  $('hud-sync').innerHTML = `<span class="sync-dot ${color==='green'?'dot-pulse':''}" style="background:${C[color]||'#888'}"></span>${label}`;
+}
+
+// ──────────────────────────────────────────────────────
+// LOGIN
+// ──────────────────────────────────────────────────────
+$('btn-enter').addEventListener('click', startGame);
+$('input-seed').addEventListener('keydown', e => e.key==='Enter' && startGame());
+
+function startGame() {
+  const raw = $('input-seed').value.trim().toUpperCase();
+  if (!raw) { toast('⚠️ Introduce una semilla'); return; }
+  currentSeed = raw;
+  safeSeed = raw.replace(/[^a-zA-Z0-9_]/g, '_'); // seguro para Firestore
+  $('hud-seed').textContent = raw;
+  $('screen-login').classList.add('hidden');
+  $('screen-game').classList.remove('hidden');
+
+  // BroadcastChannel (misma pestaña)
+  try {
+    const bc = new BroadcastChannel(`balatro_${safeSeed}`);
+    bc.onmessage = e => { if(!dragEl && !resEl){ items = e.data||[]; renderBoard(); updateCount(); } };
+    window._bc = bc;
+  } catch {}
+
+  if (fbActive && fbUser) startFBSync(); else loadLocal();
+  setTimeout(() => centerView(false), 100);
+}
+
+// ──────────────────────────────────────────────────────
+// SYNC FIRESTORE
+// Ruta: colección top-level "bb_{safeSeed}" → documentos = cartas
+// (evita rutas anidadas que confunden las reglas de seguridad)
+// ──────────────────────────────────────────────────────
+function colRef() { return collection(db, `bb_${safeSeed}`); }
+function cardRef(id) { return doc(db, `bb_${safeSeed}`, id); }
+
+function startFBSync() {
+  if (unsubSnap) { unsubSnap(); unsubSnap = null; }
+  setSyncDot('green', '☁️ Firebase');
+  unsubSnap = onSnapshot(colRef(), snap => {
+    if (dragEl || resEl) return;
+    items = snap.docs.map(d => hydrate(d.data(), d.id));
+    renderBoard(); updateCount(); bcSend();
+  }, err => {
+    console.error('Firestore snapshot error:', err);
+    setSyncDot('red', '❌ Error sync');
+    toast('❌ Error Firestore: ' + err.code);
+  });
+}
+
+function hydrate(data, id) {
+  if (data._t)  { try { data.tableData = JSON.parse(data._t); } catch{} delete data._t; }
+  if (data._td) { try { data.todoList  = JSON.parse(data._td); } catch{} delete data._td; }
+  return { ...data, id };
+}
+function dehydrate(item) {
+  const d = { ...item };
+  if (d.tableData) { d._t = JSON.stringify(d.tableData); delete d.tableData; }
+  if (d.todoList)  { d._td = JSON.stringify(d.todoList); delete d.todoList; }
+  return d;
+}
+
+function loadLocal() {
+  try { items = JSON.parse(localStorage.getItem(`balatro_${safeSeed}`) || '[]'); } catch { items = []; }
+  renderBoard(); updateCount();
+}
+function saveLocal() {
+  try { localStorage.setItem(`balatro_${safeSeed}`, JSON.stringify(items)); } catch {}
+}
+function bcSend() { try { window._bc && window._bc.postMessage(items); } catch {} }
+
+function syncItem(item) {
+  if (!item?.id) return;
+  if (fbActive && fbUser) {
+    setDoc(cardRef(item.id), dehydrate(item), { merge:true }).catch(e => {
+      toast('❌ Error guardando: ' + e.message);
+    });
+  } else { saveLocal(); bcSend(); }
+}
+function removeItem(id) {
+  items = items.filter(i => i.id !== id);
+  if (fbActive && fbUser) deleteDoc(cardRef(id)).catch(console.error);
+  else { saveLocal(); bcSend(); }
+  updateCount();
+}
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+
+// ──────────────────────────────────────────────────────
+// RENDER
+// ──────────────────────────────────────────────────────
+const HC = {'card-joker':'#f1c40f','card-tarot':'#c39bd3','card-planet':'#85c1e9','card-spectral':'#a2d9ce'};
+const esc = s => { const d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; };
+
+function renderBoard() {
+  // Cancelar timers activos antes de limpiar
+  Object.keys(timers).forEach(id => { if(timers[id]) clearInterval(timers[id]); delete timers[id]; });
+  board.innerHTML = '';
+  items.forEach(buildCard);
+  // Reiniciar timers corriendo
+  items.forEach(it => { if(it.contentType==='timer' && it.timerRunning) startTimerInterval(it); });
+  drawMinimap();
+}
+
+function buildCard(item) {
+  const el = document.createElement('div');
+  const isCustom = item.styleType === 'custom';
+  el.className = 'card' + (isCustom ? '' : ` ${item.presetClass||'card-joker'}`) + (selectedIds.has(item.id)?' selected':'');
+  if (isCustom) {
+    el.style.backgroundColor = item.customColor||'#333';
+    el.style.borderColor = item.customColor||'#fff';
+    if (item.customTexture) el.style.backgroundImage = `url(${item.customTexture})`;
+  }
+  el.style.left  = `${item.x}px`; el.style.top    = `${item.y}px`;
+  el.style.width = `${item.width||270}px`; el.style.height = `${item.height||280}px`;
+  el.dataset.id  = item.id;
+  if (boardLocked) el.classList.add('locked');
+
+  const hc = HC[item.presetClass] || '#fff';
+  const badge = item.badgeColor ? `<div class="card-badge" style="background:${item.badgeColor}"></div>` : '';
+  el.innerHTML = `
+    ${badge}
+    <button class="act-btn del no-drag" title="Eliminar">✖</button>
+    <button class="act-btn edt no-drag" title="Editar">⚙</button>
+    <button class="act-btn dup no-drag" title="Duplicar">📋</button>
+    <button class="act-btn col no-drag" title="Colapsar / expandir">▲</button>
+    <div class="card-body">
+      <div class="border-b-2 border-white/20 pb-1 mb-2 text-center" style="pointer-events:none">
+        <h3 class="text-xl font-bold uppercase truncate" style="color:${hc};text-shadow:2px 2px 0 rgba(0,0,0,.8)">${esc(item.title)}</h3>
+      </div>
+      <div class="card-body-inner flex flex-col flex-grow overflow-auto">${buildContent(item)}</div>
+    </div>
+    <div class="resize-handle no-drag"></div>`;
+  board.appendChild(el);
+}
+
+function buildContent(it) {
+  if (it.contentType==='table') return buildTable(it);
+  if (it.contentType==='todo')  return buildTodo(it);
+  if (it.contentType==='rng')   return buildRng(it);
+  if (it.contentType==='timer') return buildTimer(it);
+  return buildText(it);
+}
+function buildText(it) {
+  const desc = (it.desc||'').replace(/\n/g,'<br>');
+  const lnk = it.link ? `<a href="${esc(it.link)}" target="_blank" rel="noopener" class="no-drag block mt-2 bg-blue-700 p-2 rounded text-center text-white text-xs hover:bg-blue-600 border border-white/30">🔗 ${esc(it.link).slice(0,30)}…</a>` : '';
+  return `<p class="text-sm leading-snug text-gray-200 overflow-y-auto flex-grow break-words" style="pointer-events:none">${desc}</p><div class="mt-auto">${lnk}</div>`;
+}
+function buildTable(it) {
+  if(!it.tableData) return '<p class="text-gray-400 text-xs">Sin datos</p>';
+  const {headers,rows} = it.tableData, bg=it.tableBg||'#27ae60', bd=it.tableBorder||'#2852ff';
+  const ths = headers.map((h,c)=>`<th contenteditable="true" data-type="th" data-col="${c}" class="cell-edit no-drag" style="background:${bg};border-top:4px solid ${bd}">${esc(h)}</th>`).join('');
+  const trs = rows.map((row,r)=>`<tr>${row.map((cell,c)=>`<td contenteditable="true" data-type="td" data-row="${r}" data-col="${c}" class="cell-edit no-drag">${esc(cell)}</td>`).join('')}</tr>`).join('');
+  return `<div class="overflow-auto no-drag flex-grow mb-1"><table class="tbl"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>
+    <div class="flex gap-1 flex-wrap no-drag mt-auto">
+      <button class="tbl-btn t-ar" data-id="${it.id}">+F</button><button class="tbl-btn t-ac" data-id="${it.id}">+C</button>
+      <button class="tbl-btn t-dr" data-id="${it.id}">-F</button><button class="tbl-btn t-dc" data-id="${it.id}">-C</button>
+    </div>`;
+}
+function buildTodo(it) {
+  const list = it.todoList||[];
+  const done = list.filter(t=>t.checked).length;
+  const pct  = list.length ? Math.round(done/list.length*100) : 0;
+  const rows = list.map((t,i)=>`
+    <div class="flex items-center gap-2 mb-1 no-drag" style="pointer-events:auto">
+      <input type="checkbox" class="todo-chk w-5 h-5 cursor-pointer shrink-0" data-id="${it.id}" data-i="${i}" ${t.checked?'checked':''}>
+      <input type="text" class="todo-txt flex-1 bg-transparent border-b border-gray-600 outline-none text-white text-xs ${t.checked?'line-through text-gray-500':''}" data-id="${it.id}" data-i="${i}" value="${esc(t.text)}">
+      <button class="todo-del text-red-400 hover:text-red-300 font-bold px-1 shrink-0 text-xs" data-id="${it.id}" data-i="${i}">✖</button>
+    </div>`).join('');
+  return `<div class="todo-progress"><div class="todo-progress-bar" style="width:${pct}%"></div></div>
+    <div class="text-xs text-gray-400 mb-2">${done}/${list.length} · ${pct}%</div>
+    <div class="overflow-y-auto flex-grow mb-1 no-drag">${rows}</div>
+    <button class="todo-add btn blue w-full py-1 text-xs no-drag" data-id="${it.id}" style="pointer-events:auto">+ Tarea</button>`;
+}
+function buildRng(it) {
+  return `<div class="flex flex-col items-center justify-center flex-grow" style="pointer-events:none">
+    <div class="text-6xl font-bold text-[#f1c40f]" id="rng-${it.id}">${it.rngValue??'?'}</div>
+    <div class="text-gray-400 text-xs mt-1">D${it.rngMax||6}</div>
+  </div>
+  <button class="rng-roll btn w-full py-2 text-base no-drag" data-id="${it.id}" data-max="${it.rngMax||6}" style="pointer-events:auto">🎲 TIRAR</button>`;
+}
+function buildTimer(it) {
+  const secs = it.timerSecs ?? ((it.timerMin||25)*60+(it.timerSecStart||0));
+  const rem  = it.timerRemaining ?? secs;
+  const mm   = String(Math.floor(rem/60)).padStart(2,'0');
+  const ss   = String(rem%60).padStart(2,'0');
+  const cls  = it.timerRunning ? 'running' : (rem===0 ? 'ended' : '');
+  return `<div class="flex flex-col items-center justify-center flex-grow" style="pointer-events:none">
+    <div class="timer-display ${cls}" id="tmr-${it.id}">${mm}:${ss}</div>
+    <div class="text-gray-400 text-xs mt-1">⏱ ${it.timerMin||25}min</div>
+  </div>
+  <div class="flex gap-2 no-drag mt-auto" style="pointer-events:auto">
+    <button class="timer-btn tmr-start flex-1" data-id="${it.id}">${it.timerRunning?'⏸ Pausa':'▶ Start'}</button>
+    <button class="timer-btn tmr-reset" data-id="${it.id}">↩</button>
+  </div>`;
+}
+
+// ──────────────────────────────────────────────────────
+// TIMER LOGIC
+// ──────────────────────────────────────────────────────
+function startTimerInterval(it) {
+  if (timers[it.id]) clearInterval(timers[it.id]);
+  timers[it.id] = setInterval(() => {
+    if (!it.timerRunning) { clearInterval(timers[it.id]); return; }
+    it.timerRemaining = Math.max(0, (it.timerRemaining||0) - 1);
+    const el = $(`tmr-${it.id}`);
+    if (el) {
+      const mm = String(Math.floor(it.timerRemaining/60)).padStart(2,'0');
+      const ss = String(it.timerRemaining%60).padStart(2,'0');
+      el.textContent = `${mm}:${ss}`;
+      if (it.timerRemaining === 0) {
+        it.timerRunning = false; clearInterval(timers[it.id]);
+        el.className = 'timer-display ended';
+        toast('⏱ ¡Temporizador terminado! — ' + it.title);
+        syncItem(it); renderBoard();
+      }
+    } else { clearInterval(timers[it.id]); }
+  }, 1000);
+}
+
+// ──────────────────────────────────────────────────────
+// EVENTOS DEL TABLERO
+// ──────────────────────────────────────────────────────
+board.addEventListener('click', e => {
+  const t = e.target, pin = t.closest('.card');
+  if (!pin) return;
+  if (t.classList.contains('del'))      { e.stopPropagation(); doDelete(pin); return; }
+  if (t.classList.contains('edt'))      { e.stopPropagation(); doEdit(pin); return; }
+  if (t.classList.contains('dup'))      { e.stopPropagation(); doDup(pin); return; }
+  if (t.classList.contains('col'))      { e.stopPropagation(); doCollapse(pin); return; }
+  if (t.classList.contains('todo-add')) { doTodoAdd(t.dataset.id); return; }
+  if (t.classList.contains('todo-del')) { doTodoDel(t.dataset.id,+t.dataset.i); return; }
+  if (t.classList.contains('rng-roll')) { doRoll(t.dataset.id,+t.dataset.max,t); return; }
+  if (t.classList.contains('tmr-start')){ doTimerToggle(t.dataset.id); return; }
+  if (t.classList.contains('tmr-reset')){ doTimerReset(t.dataset.id); return; }
+  if (t.classList.contains('t-ar')) { tableOp(t.dataset.id,'ar'); return; }
+  if (t.classList.contains('t-ac')) { tableOp(t.dataset.id,'ac'); return; }
+  if (t.classList.contains('t-dr')) { tableOp(t.dataset.id,'dr'); return; }
+  if (t.classList.contains('t-dc')) { tableOp(t.dataset.id,'dc'); return; }
+  // Selección con Shift
+  if (e.shiftKey) { toggleSelect(pin.dataset.id); }
+});
+
+// Doble click en tablero vacío → nueva carta
+ws.addEventListener('dblclick', e => {
+  if (e.target !== ws && e.target !== board) return;
+  const bp = toBoard(e.clientX, e.clientY);
+  openModalForNew(bp.x, bp.y);
+});
+
+board.addEventListener('change', e => {
+  if (e.target.classList.contains('todo-chk')) {
+    const it = items.find(i=>i.id===e.target.dataset.id);
+    if (it?.todoList?.[+e.target.dataset.i]) { it.todoList[+e.target.dataset.i].checked=e.target.checked; renderBoard(); syncItem(it); }
+  }
+});
+board.addEventListener('input', e => {
+  if (e.target.classList.contains('todo-txt')) {
+    const it=items.find(i=>i.id===e.target.dataset.id);
+    if(it?.todoList?.[+e.target.dataset.i]) it.todoList[+e.target.dataset.i].text=e.target.value;
+  }
+  if (e.target.classList.contains('cell-edit')) {
+    const pin=e.target.closest('.card'); if(!pin) return;
+    const it=items.find(i=>i.id===pin.dataset.id);
+    if(!it||it.contentType!=='table') return;
+    const col=+e.target.dataset.col, val=e.target.innerText;
+    if(e.target.dataset.type==='th') it.tableData.headers[col]=val;
+    else it.tableData.rows[+e.target.dataset.row][col]=val;
+  }
+});
+board.addEventListener('focusout', e => {
+  if(e.target.classList.contains('todo-txt')||e.target.classList.contains('cell-edit')){
+    const pin=e.target.closest('.card'); if(!pin) return;
+    const it=items.find(i=>i.id===pin.dataset.id); if(it) syncItem(it);
+  }
+});
+
+function doDelete(pin) {
+  const id=pin.dataset.id, it=items.find(i=>i.id===id);
+  if(!it) return;
+  undoStack.push({type:'delete',item:JSON.parse(JSON.stringify(it))});
+  if(undoStack.length>20) undoStack.shift();
+  pin.style.transition='transform .2s,opacity .2s'; pin.style.transform='scale(0) rotate(12deg)'; pin.style.opacity='0';
+  setTimeout(()=>{ removeItem(id); renderBoard(); },200);
+  toast('🗑️ Carta eliminada · Ctrl+Z para deshacer');
+}
+function doEdit(pin) {
+  const it=items.find(i=>i.id===pin.dataset.id); if(!it) return;
+  editingId=it.id; $('mc-title').textContent='Editar Carta'; $('btn-csave').textContent='APLICAR';
+  $('c-title').value=it.title||''; $('c-link').value=it.link||'';
+  $('c-mat').value=it.styleType==='custom'?'custom':'preset';
+  $('c-preset').value=it.presetClass||'card-joker'; $('c-color').value=it.customColor||'#8b2a2a';
+  $('c-ctype').value=it.contentType||'text'; $('c-desc').value=it.desc||'';
+  $('c-tbg').value=it.tableBg||'#27ae60'; $('c-tborder').value=it.tableBorder||'#2852ff';
+  $('c-rmax').value=it.rngMax||6;
+  $('c-timer-min').value=it.timerMin||25; $('c-timer-sec').value=it.timerSecStart||0;
+  // Badge color
+  selectedBadgeColor = it.badgeColor||'';
+  document.querySelectorAll('.clr-swatch').forEach(s=>{ s.classList.toggle('active', s.dataset.clr===selectedBadgeColor); });
+  toggleMat(); toggleCtype(); $('modal-card').classList.remove('hidden');
+}
+function doDup(pin) {
+  const orig=items.find(i=>i.id===pin.dataset.id); if(!orig) return;
+  const copy=JSON.parse(JSON.stringify(orig)); copy.id=uid(); copy.x+=30; copy.y+=30; copy.timestamp=Date.now();
+  // Reset timer state on dup
+  if(copy.contentType==='timer'){ copy.timerRunning=false; copy.timerRemaining=undefined; }
+  items.push(copy); syncItem(copy); renderBoard(); updateCount(); toast('📋 Carta duplicada');
+}
+function doCollapse(pin) {
+  pin.classList.toggle('collapsed');
+  pin.querySelector('.act-btn.col').textContent = pin.classList.contains('collapsed') ? '▼' : '▲';
+}
+function doTodoAdd(id) {
+  const it=items.find(i=>i.id===id); if(!it) return;
+  it.todoList=it.todoList||[]; it.todoList.push({text:'',checked:false});
+  renderBoard(); syncItem(it);
+}
+function doTodoDel(id,idx) {
+  const it=items.find(i=>i.id===id); if(!it) return;
+  it.todoList.splice(idx,1); renderBoard(); syncItem(it);
+}
+function doRoll(id,max,btn) {
+  const it=items.find(i=>i.id===id); if(!it) return;
+  btn.disabled=true; let f=0;
+  const a=setInterval(()=>{
+    const v=$(`rng-${id}`); if(v) v.textContent=Math.floor(Math.random()*max)+1;
+    if(++f>14){ clearInterval(a); it.rngValue=Math.floor(Math.random()*max)+1; btn.disabled=false; renderBoard(); syncItem(it); toast(`🎲 ${it.rngValue}`); }
+  },45);
+}
+function doTimerToggle(id) {
+  const it=items.find(i=>i.id===id); if(!it) return;
+  if(it.timerRemaining===undefined) it.timerRemaining=(it.timerMin||25)*60+(it.timerSecStart||0);
+  if(it.timerRemaining===0) return;
+  it.timerRunning=!it.timerRunning;
+  if(it.timerRunning) startTimerInterval(it); else { clearInterval(timers[id]); }
+  renderBoard(); syncItem(it);
+}
+function doTimerReset(id) {
+  const it=items.find(i=>i.id===id); if(!it) return;
+  it.timerRunning=false; clearInterval(timers[id]);
+  it.timerRemaining=(it.timerMin||25)*60+(it.timerSecStart||0);
+  renderBoard(); syncItem(it);
+}
+function tableOp(id,op) {
+  const it=items.find(i=>i.id===id); if(!it?.tableData) return;
+  const {headers,rows}=it.tableData;
+  if(op==='ar') rows.push(new Array(headers.length).fill(''));
+  else if(op==='ac'){ headers.push(''); rows.forEach(r=>r.push('')); }
+  else if(op==='dr'&&rows.length>1) rows.pop();
+  else if(op==='dc'&&headers.length>1){ headers.pop(); rows.forEach(r=>r.pop()); }
+  renderBoard(); syncItem(it);
+}
+function toggleSelect(id) {
+  if(selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+  renderBoard();
+}
+
+// ──────────────────────────────────────────────────────
+// MODAL CARTA
+// ──────────────────────────────────────────────────────
+let _newX, _newY;
+
+$('btn-add').addEventListener('click', () => openModalForNew());
+$('btn-ccancel').addEventListener('click', ()=>$('modal-card').classList.add('hidden'));
+$('c-mat').addEventListener('change', toggleMat);
+$('c-ctype').addEventListener('change', toggleCtype);
+$('c-texture').addEventListener('change', e=>{
+  const f=e.target.files[0]; if(!f) return;
+  if(f.size>700000){ toast('❌ Máx 700KB'); return; }
+  const r=new FileReader(); r.onload=ev=>{ customTex=ev.target.result; toast('✓ Imagen cargada'); }; r.readAsDataURL(f);
+});
+// Badge color swatches
+document.querySelectorAll('.clr-swatch').forEach(s=>{
+  s.addEventListener('click', ()=>{
+    selectedBadgeColor=s.dataset.clr;
+    document.querySelectorAll('.clr-swatch').forEach(x=>x.classList.remove('active'));
+    s.classList.add('active');
+  });
+});
+
+function openModalForNew(bx, by) {
+  editingId=null; _newX=bx; _newY=by;
+  $('mc-title').textContent='Nueva Carta'; $('btn-csave').textContent='AÑADIR';
+  $('c-title').value=''; $('c-desc').value=''; $('c-link').value='';
+  $('c-mat').value='preset'; $('c-preset').value='card-joker'; $('c-ctype').value='text';
+  selectedBadgeColor=''; customTex='';
+  document.querySelectorAll('.clr-swatch').forEach((s,i)=>s.classList.toggle('active',i===0));
+  toggleMat(); toggleCtype(); $('modal-card').classList.remove('hidden');
+}
+function toggleMat(){ const c=$('c-mat').value==='custom'; $('ctrl-preset').classList.toggle('hidden',c); $('ctrl-custom').classList.toggle('hidden',!c); }
+function toggleCtype(){
+  const v=$('c-ctype').value;
+  $('c-desc').classList.toggle('hidden', v!=='text');
+  $('ctrl-table').classList.toggle('hidden', v!=='table');
+  $('ctrl-rng').classList.toggle('hidden',  v!=='rng');
+  $('ctrl-todo').classList.toggle('hidden',  v!=='todo');
+  $('ctrl-timer').classList.toggle('hidden', v!=='timer');
+}
+
+$('btn-csave').addEventListener('click', ()=>{
+  const isCustom=$('c-mat').value==='custom', ct=$('c-ctype').value;
+  const cx = _newX ?? (-panX/panScale + window.innerWidth/panScale/2);
+  const cy = _newY ?? (-panY/panScale + window.innerHeight/panScale/2);
+  const base={
+    title:$('c-title').value.trim()||'CARTA', link:$('c-link').value.trim(),
+    styleType:isCustom?'custom':'preset', presetClass:isCustom?'':$('c-preset').value,
+    customColor:isCustom?$('c-color').value:'', customTexture:isCustom?customTex:'',
+    contentType:ct, desc:ct==='text'?$('c-desc').value:'',
+    badgeColor:selectedBadgeColor, timestamp:Date.now()
+  };
+  _newX=_newY=undefined;
+  if(ct==='table'){ base.tableData={headers:['Col A','Col B'],rows:[['',''],['','']]}; base.tableBg=$('c-tbg').value; base.tableBorder=$('c-tborder').value; base.width=320; base.height=380; }
+  else if(ct==='todo') { base.todoList=[]; base.width=280; base.height=340; }
+  else if(ct==='rng')  { base.rngMax=parseInt($('c-rmax').value)||6; base.rngValue='?'; base.width=260; base.height=260; }
+  else if(ct==='timer'){ base.timerMin=parseInt($('c-timer-min').value)||25; base.timerSecStart=parseInt($('c-timer-sec').value)||0; base.timerRemaining=undefined; base.timerRunning=false; base.width=260; base.height=260; }
+  else { base.width=270; base.height=290; }
+  $('modal-card').classList.add('hidden');
+  if(editingId){
+    const idx=items.findIndex(i=>i.id===editingId);
+    if(idx!==-1){
+      const old=items[idx];
+      items[idx]={ ...old,...base, id:old.id, x:old.x, y:old.y, width:old.width, height:old.height,
+        tableData:(ct==='table'&&old.contentType==='table')?old.tableData:base.tableData,
+        todoList:(ct==='todo'&&old.contentType==='todo')?old.todoList:base.todoList };
+      syncItem(items[idx]);
+    }
+    toast('✓ Carta actualizada');
+  } else {
+    const item={ ...base, id:uid(), x:cx-(base.width/2)+(Math.random()*20-10), y:cy-(base.height/2)+(Math.random()*20-10) };
+    items.push(item); syncItem(item); updateCount(); toast('✓ Carta añadida');
+  }
+  renderBoard();
+});
+
+// ──────────────────────────────────────────────────────
+// DRAG & RESIZE — Sistema de coordenadas correcto
+// board tiene transform: translate(panX, panY) scale(panScale)
+// coord_board = (coord_cliente - pan) / scale
+// ──────────────────────────────────────────────────────
+function toBoard(cx,cy){ return { x:(cx-panX)/panScale, y:(cy-panY)/panScale }; }
+
+ws.addEventListener('pointerdown', onPD);
+window.addEventListener('pointermove', onPM, {passive:false});
+window.addEventListener('pointerup', onPU);
+window.addEventListener('pointercancel', onPU);
+
+function onPD(e) {
+  const t=e.target;
+  // Ignorar interactivos
+  if(['INPUT','TEXTAREA','SELECT','BUTTON','A'].includes(t.tagName) || t.classList.contains('no-drag') || t.classList.contains('act-btn')) return;
+  if(boardLocked && t.closest('.card')) return;
+
+  // Resize
+  if(t.classList.contains('resize-handle')){
+    e.preventDefault();
+    resEl=t.closest('.card'); if(!resEl) return;
+    resEl.classList.add('resizing');
+    resX0=e.clientX; resY0=e.clientY; resW0=resEl.offsetWidth; resH0=resEl.offsetHeight;
+    ws.setPointerCapture(e.pointerId); return;
+  }
+  // Drag card
+  const card=t.closest('.card');
+  if(card){
+    e.preventDefault();
+    dragEl=card; dragEl.classList.add('dragging'); dragEl.style.zIndex=999;
+    const bp=toBoard(e.clientX,e.clientY);
+    dragOffX=bp.x - parseFloat(dragEl.style.left||0);
+    dragOffY=bp.y - parseFloat(dragEl.style.top||0);
+    ws.setPointerCapture(e.pointerId); return;
+  }
+  // Pan
+  if(!e.target.closest('.card')){
+    isPanning=true; panX0=e.clientX-panX; panY0=e.clientY-panY; ws.style.cursor='grabbing';
+  }
+}
+
+function onPM(e) {
+  if(resEl){
+    e.preventDefault();
+    const dw=(e.clientX-resX0)/panScale, dh=(e.clientY-resY0)/panScale;
+    resEl.style.width  = `${Math.max(180,resW0+dw)}px`;
+    resEl.style.height = `${Math.max(180,resH0+dh)}px`;
+    return;
+  }
+  if(dragEl){
+    e.preventDefault();
+    const bp=toBoard(e.clientX,e.clientY);
+    let nx=bp.x-dragOffX, ny=bp.y-dragOffY;
+    if(snapEnabled){ nx=Math.round(nx/SNAP)*SNAP; ny=Math.round(ny/SNAP)*SNAP; }
+    dragEl.style.left=`${nx}px`; dragEl.style.top=`${ny}px`;
+    return;
+  }
+  if(isPanning){ e.preventDefault(); panX=e.clientX-panX0; panY=e.clientY-panY0; applyT(); }
+}
+
+function onPU(e) {
+  if(resEl){
+    const it=items.find(i=>i.id===resEl.dataset.id);
+    if(it){ it.width=resEl.offsetWidth; it.height=resEl.offsetHeight; syncItem(it); }
+    resEl.classList.remove('resizing'); resEl=null; return;
+  }
+  if(dragEl){
+    const it=items.find(i=>i.id===dragEl.dataset.id);
+    if(it){ it.x=parseFloat(dragEl.style.left); it.y=parseFloat(dragEl.style.top); syncItem(it); }
+    dragEl.classList.remove('dragging'); dragEl.style.zIndex=''; dragEl=null; drawMinimap(); return;
+  }
+  if(isPanning){ isPanning=false; ws.style.cursor='default'; }
+}
+
+// ──────────────────────────────────────────────────────
+// ZOOM
+// ──────────────────────────────────────────────────────
+ws.addEventListener('wheel', e=>{
+  e.preventDefault();
+  const d=e.deltaY>0?.9:1.1, ns=Math.min(Math.max(0.1,panScale*d),5);
+  panX=e.clientX-(e.clientX-panX)*(ns/panScale);
+  panY=e.clientY-(e.clientY-panY)*(ns/panScale);
+  panScale=ns; applyT();
+},{passive:false});
+
+// Pinch
+let _ptrs=[];
+ws.addEventListener('pointerdown', e=>{ _ptrs.push(e); });
+ws.addEventListener('pointermove', e=>{
+  _ptrs=_ptrs.map(p=>p.pointerId===e.pointerId?e:p);
+  if(_ptrs.length===2){
+    const d=Math.hypot(_ptrs[0].clientX-_ptrs[1].clientX,_ptrs[0].clientY-_ptrs[1].clientY);
+    if(pinchDist0>0){
+      const r=d/pinchDist0, mx=(_ptrs[0].clientX+_ptrs[1].clientX)/2, my=(_ptrs[0].clientY+_ptrs[1].clientY)/2;
+      const ns=Math.min(Math.max(0.1,panScale*r),5);
+      panX=mx-(mx-panX)*(ns/panScale); panY=my-(my-panY)*(ns/panScale); panScale=ns; applyT();
+    }
+    pinchDist0=d;
+  }
+});
+ws.addEventListener('pointerup', e=>{ _ptrs=_ptrs.filter(p=>p.pointerId!==e.pointerId); if(!_ptrs.length) pinchDist0=0; });
+
+// Zoom slider
+$('zoom-slider').addEventListener('input', e=>{
+  const ns=parseInt(e.target.value)/100;
+  panX=window.innerWidth/2-(window.innerWidth/2-panX)*(ns/panScale);
+  panY=window.innerHeight/2-(window.innerHeight/2-panY)*(ns/panScale);
+  panScale=ns; applyT();
+});
+
+function applyT(){
+  board.style.transform=`translate(${panX}px,${panY}px) scale(${panScale})`;
+  $('hud-zoom').textContent=Math.round(panScale*100);
+  $('zoom-slider').value=Math.round(panScale*100);
+  drawMinimap();
+}
+
+// ──────────────────────────────────────────────────────
+// CENTRAR VISTA
+// ──────────────────────────────────────────────────────
+$('btn-center').addEventListener('click', ()=>centerView(true));
+function centerView(anim=true){
+  if(!items.length){ panX=100; panY=100; panScale=1; applyT(); return; }
+  const xs=items.map(i=>i.x), ys=items.map(i=>i.y);
+  const cx=(Math.min(...xs)+Math.max(...xs))/2, cy=(Math.min(...ys)+Math.max(...ys))/2;
+  panX=window.innerWidth/2-cx*panScale; panY=window.innerHeight/2-cy*panScale;
+  if(anim){ board.style.transition='transform .4s ease'; setTimeout(()=>board.style.transition='',450); }
+  applyT(); if(anim) toast('🎯 Vista centrada');
+}
+
+// ──────────────────────────────────────────────────────
+// MINIMAPA
+// ──────────────────────────────────────────────────────
+const MM_W=160,MM_H=115; let _mmMx=0,_mmMy=0,_mmMs=1;
+const CC={'card-joker':'#d4af37','card-tarot':'#a569bd','card-planet':'#5dade2','card-spectral':'#76b7b0'};
+function drawMinimap(){
+  mmCtx.clearRect(0,0,MM_W,MM_H);
+  mmCtx.fillStyle='rgba(13,17,23,.85)'; mmCtx.fillRect(0,0,MM_W,MM_H);
+  if(!items.length) return;
+  const mg=20, xs=items.map(i=>i.x), ys=items.map(i=>i.y);
+  const wx=items.map(i=>i.x+(i.width||270)), hy=items.map(i=>i.y+(i.height||280));
+  const mx=Math.min(...xs)-mg, mxw=Math.max(...wx)+mg, my=Math.min(...ys)-mg, myh=Math.max(...hy)+mg;
+  const s=Math.min(MM_W/(mxw-mx),MM_H/(myh-my));
+  _mmMx=mx; _mmMy=my; _mmMs=s;
+  items.forEach(it=>{
+    const x=(it.x-mx)*s,y=(it.y-my)*s,w=Math.max((it.width||270)*s,3),h=Math.max((it.height||280)*s,3);
+    mmCtx.fillStyle=it.badgeColor||(it.styleType==='custom'?(it.customColor||'#555'):(CC[it.presetClass]||'#888'));
+    mmCtx.globalAlpha=.7; mmCtx.beginPath(); mmCtx.roundRect(x,y,w,h,2); mmCtx.fill();
+  });
+  mmCtx.globalAlpha=1;
+  const vx=(-panX/panScale-mx)*s, vy=(-panY/panScale-my)*s;
+  const vw=(window.innerWidth/panScale)*s, vh=(window.innerHeight/panScale)*s;
+  mmCtx.strokeStyle='#f1c40f'; mmCtx.lineWidth=2; mmCtx.strokeRect(vx,vy,vw,vh);
+}
+$('minimap').addEventListener('click', e=>{
+  const r=$('minimap').getBoundingClientRect();
+  const wx=(e.clientX-r.left)/_mmMs+_mmMx, wy=(e.clientY-r.top)/_mmMs+_mmMy;
+  panX=window.innerWidth/2-wx*panScale; panY=window.innerHeight/2-wy*panScale;
+  board.style.transition='transform .3s ease'; applyT(); setTimeout(()=>board.style.transition='',350);
+});
+
+// ──────────────────────────────────────────────────────
+// BÚSQUEDA
+// ──────────────────────────────────────────────────────
+$('btn-srch').addEventListener('click', ()=>{
+  $('panel-srch').classList.toggle('hidden');
+  ['panel-sync','panel-settings'].forEach(id=>$(id).classList.add('hidden'));
+  if(!$('panel-srch').classList.contains('hidden')){ $('srch-input').focus(); doSearch(); }
+});
+$('btn-srch-close').addEventListener('click', ()=>$('panel-srch').classList.add('hidden'));
+$('srch-input').addEventListener('input', debounce(doSearch,250));
+document.querySelectorAll('.fbtn').forEach(b=>b.addEventListener('click',()=>{ srchFilter=b.dataset.f; doSearch(); }));
+
+function doSearch(){
+  const q=$('srch-input').value.toLowerCase().trim();
+  let f=srchFilter==='all'?items:items.filter(i=>i.contentType===srchFilter);
+  if(q) f=f.filter(i=>(i.title||'').toLowerCase().includes(q)||(i.desc||'').toLowerCase().includes(q));
+  const el=$('srch-results');
+  if(!f.length){ el.innerHTML='<p class="text-gray-500 text-center py-2 text-xs">Sin resultados</p>'; return; }
+  const TL={text:'📝',table:'📊',todo:'✅',rng:'🎲',timer:'⏱️'};
+  el.innerHTML=f.map(it=>`<div class="s-item" data-id="${it.id}">
+    <div class="flex items-center gap-2"><span>${TL[it.contentType]||'📄'}</span><span class="text-sm font-bold text-[#f1c40f] truncate">${esc(it.title)}</span></div>
+    ${it.badgeColor?`<div style="width:40px;height:4px;border-radius:2px;background:${it.badgeColor};margin-top:4px"></div>`:''}
+  </div>`).join('');
+  el.querySelectorAll('.s-item').forEach(el2=>el2.addEventListener('click',()=>{
+    const it=items.find(i=>i.id===el2.dataset.id); if(!it) return;
+    panX=window.innerWidth/2-(it.x+(it.width||270)/2)*panScale;
+    panY=window.innerHeight/2-(it.y+(it.height||280)/2)*panScale;
+    board.style.transition='transform .4s ease'; applyT(); setTimeout(()=>board.style.transition='',450);
+    $('panel-srch').classList.add('hidden');
+    setTimeout(()=>{ const c=document.querySelector(`[data-id="${it.id}"]`); if(c){ c.classList.add('highlight'); setTimeout(()=>c.classList.remove('highlight'),2400); } },500);
+  }));
+}
+
+// ──────────────────────────────────────────────────────
+// PANEL SYNC
+// ──────────────────────────────────────────────────────
+$('btn-sync-panel').addEventListener('click', ()=>{
+  $('panel-sync').classList.toggle('hidden');
+  ['panel-srch','panel-settings'].forEach(id=>$(id).classList.add('hidden'));
+  updateSyncPanel();
+});
+$('btn-sync-close-p').addEventListener('click', ()=>$('panel-sync').classList.add('hidden'));
+$('btn-forget-fb').addEventListener('click', ()=>{
+  localStorage.removeItem('balatro_fb_cfg'); fbActive=false; fbUser=null; db=null; auth=null;
+  if(unsubSnap){ unsubSnap(); unsubSnap=null; }
+  setSyncDot('yellow','💾 Local'); toast('🗑️ Config de Firebase olvidada');
+});
+$('btn-open-sync-game').addEventListener('click', openSyncModal);
+function updateSyncPanel(){
+  $('sync-detail-panel').innerHTML = fbActive&&fbUser
+    ? `<p class="text-green-400 font-bold">✅ Firebase activo</p><p>Semilla: <span class="text-yellow-400">${currentSeed}</span></p><p>Cartas: ${items.length}</p><p class="text-gray-500 text-xs mt-1">Misma semilla + misma config = sync en tiempo real.</p>`
+    : `<p class="text-yellow-400 font-bold">⚡ Solo local</p><p class="text-xs text-gray-500 mt-1">Configura Firebase para sincronizar entre dispositivos.</p>`;
+}
+
+// ──────────────────────────────────────────────────────
+// PANEL AJUSTES
+// ──────────────────────────────────────────────────────
+$('btn-settings').addEventListener('click', ()=>{
+  $('panel-settings').classList.toggle('hidden');
+  ['panel-srch','panel-sync'].forEach(id=>$(id).classList.add('hidden'));
+});
+$('btn-settings-close').addEventListener('click', ()=>$('panel-settings').classList.add('hidden'));
+
+document.querySelectorAll('.bg-btn').forEach(b=>b.addEventListener('click', ()=>{
+  board.className = b.dataset.bg==='dots'?'':b.dataset.bg==='lines'?'grid-lines':'no-grid';
+  localStorage.setItem('balatro_bg', b.dataset.bg);
+  toast('🖼 Fondo cambiado');
+}));
+
+$('btn-snap').addEventListener('click', ()=>{
+  snapEnabled=!snapEnabled;
+  $('btn-snap').textContent = snapEnabled?'ON':'OFF';
+  $('btn-snap').classList.toggle('green', snapEnabled);
+  $('snap-indicator').classList.toggle('visible', snapEnabled);
+  toast(snapEnabled?'🧲 Snap activado':'Snap desactivado');
+});
+
+$('btn-lock').addEventListener('click', ()=>{
+  boardLocked=!boardLocked;
+  $('btn-lock').textContent = boardLocked?'ON':'OFF';
+  $('btn-lock').classList.toggle('orange', boardLocked);
+  document.querySelectorAll('.card').forEach(c=>c.classList.toggle('locked',boardLocked));
+  toast(boardLocked?'🔒 Pizarra bloqueada':'🔓 Pizarra desbloqueada');
+});
+
+$('btn-scanlines').addEventListener('click', ()=>{
+  const sl=document.querySelector('.scanlines');
+  const on = sl.style.opacity!=='0';
+  sl.style.opacity = on?'0':'0.4';
+  $('btn-scanlines').textContent = on?'OFF':'ON';
+});
+
+$('btn-undo').addEventListener('click', doUndo);
+$('btn-select-all').addEventListener('click', ()=>{
+  items.forEach(i=>selectedIds.add(i.id)); renderBoard(); toast(`☐ ${selectedIds.size} cartas seleccionadas`);
+});
+$('btn-delete-selected').addEventListener('click', ()=>{
+  if(!selectedIds.size){ toast('⚠️ No hay cartas seleccionadas'); return; }
+  if(!confirm(`¿Eliminar ${selectedIds.size} cartas?`)) return;
+  selectedIds.forEach(id=>removeItem(id)); selectedIds.clear(); renderBoard(); toast('🗑️ Cartas eliminadas');
+});
+$('btn-clear-all').addEventListener('click', ()=>{
+  if(!items.length){ toast('ℹ️ No hay cartas'); return; }
+  if(!confirm(`¿Eliminar TODAS las ${items.length} cartas? Esto no se puede deshacer.`)) return;
+  [...items].forEach(it=>removeItem(it.id)); renderBoard(); toast('🗑️ Tablero limpio');
+});
+
+function doUndo(){
+  if(!undoStack.length){ toast('ℹ️ Nada que deshacer'); return; }
+  const {item}=undoStack.pop();
+  item.id=uid(); // nuevo id para evitar conflictos
+  items.push(item); syncItem(item); renderBoard(); updateCount(); toast('↩ Carta restaurada');
+}
+
+// ──────────────────────────────────────────────────────
+// MODAL SYNC — Firebase setup con diagnóstico completo
+// ──────────────────────────────────────────────────────
+function openSyncModal(){
+  $('modal-sync').classList.remove('hidden'); switchTab('guide');
+  const saved=localStorage.getItem('balatro_fb_cfg');
+  if(saved) $('fb-cfg-input').value=saved;
+}
+['btn-open-sync-login','btn-open-sync-game'].forEach(id=>$(id)?.addEventListener('click',openSyncModal));
+$('btn-sync-modal-close').addEventListener('click',()=>$('modal-sync').classList.add('hidden'));
+document.querySelectorAll('.stab').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.t)));
+
+function switchTab(t){
+  document.querySelectorAll('.stab-content').forEach(e=>e.classList.add('hidden'));
+  document.querySelectorAll('.stab').forEach(b=>{ b.classList.toggle('blue',b.dataset.t===t); b.classList.toggle('gray',b.dataset.t!==t); });
+  $(`st-${t}`).classList.remove('hidden');
+}
+
+// Botón guardar Firebase
+$('btn-save-fb').addEventListener('click', async ()=>{
+  const raw=$('fb-cfg-input').value.trim();
+  $('cfg-err').classList.add('hidden'); $('cfg-ok').classList.add('hidden');
+  let cfg;
+  try {
+    const cleaned=raw.replace(/^[\s\S]*?({)/,'$1').replace(/;?\s*$/,'').trim();
+    cfg=JSON.parse(cleaned);
+  } catch {
+    try { cfg=JSON.parse(raw); } catch(e){ showErr('JSON inválido: ' + e.message); return; }
+  }
+  if(!cfg?.apiKey)      { showErr('Falta el campo apiKey'); return; }
+  if(!cfg?.projectId)   { showErr('Falta el campo projectId'); return; }
+  if(!cfg?.authDomain)  { showErr('Falta el campo authDomain'); return; }
+
+  $('btn-save-fb').textContent='Conectando…'; $('btn-save-fb').disabled=true;
+  try {
+    await initFB(cfg);
+    localStorage.setItem('balatro_fb_cfg', JSON.stringify(cfg));
+    setSyncDot('green','☁️ Firebase');
+    $('cfg-ok').textContent='✅ ¡Conectado! Firebase funciona correctamente.';
+    $('cfg-ok').classList.remove('hidden');
+    toast('✅ Firebase conectado y guardado');
+    if(currentSeed){ startFBSync(); }
+    setTimeout(()=>$('modal-sync').classList.add('hidden'),1500);
+  } catch(err){
+    showErr(buildErrMsg(err));
+  } finally {
+    $('btn-save-fb').textContent='💾 Guardar y Conectar'; $('btn-save-fb').disabled=false;
+  }
+});
+
+// Diagnóstico completo
+$('btn-run-test').addEventListener('click', async ()=>{
+  const res=$('test-results'); res.innerHTML='<p class="text-gray-400">Ejecutando diagnóstico…</p>';
+  const steps=[];
+  const add=(ok,msg)=>{ steps.push(`<div class="flex items-start gap-2 py-1"><span>${ok?'✅':'❌'}</span><span class="${ok?'text-green-400':'text-red-400'}">${msg}</span></div>`); res.innerHTML=steps.join(''); };
+
+  // Paso 1: config guardada
+  const saved=localStorage.getItem('balatro_fb_cfg');
+  if(!saved){ add(false,'No hay config de Firebase guardada. Ve a la pestaña "Config".'); return; }
+  add(true,'Config encontrada en localStorage');
+
+  let cfg;
+  try { cfg=JSON.parse(saved); add(true,`ProjectId: ${cfg.projectId}`); }
+  catch { add(false,'Config corrupta. Bórrala y vuelve a pegarla.'); return; }
+
+  // Paso 2: inicializar
+  try {
+    add(true,'Inicializando Firebase app…');
+    await initFB(cfg);
+    add(true,'Firebase inicializado correctamente');
+    add(true,'Auth anónima exitosa · UID: '+fbUser.uid.slice(0,12)+'…');
+  } catch(e){ add(false,'Error de init: '+e.message); return; }
+
+  // Paso 3: escribir en Firestore
+  try {
+    const testRef=doc(db,'_ping','diagnostic');
+    await setDoc(testRef,{ts:Date.now(),seed:safeSeed||'test'});
+    add(true,'Escritura en Firestore OK');
+  } catch(e){ add(false,'Error de escritura Firestore: '+e.message+'. Revisa las reglas de seguridad.'); return; }
+
+  // Paso 4: leer
+  try {
+    const snap=await getDocs(collection(db,'_ping'));
+    add(true,`Lectura Firestore OK (${snap.size} doc/s en _ping)`);
+  } catch(e){ add(false,'Error de lectura: '+e.message); return; }
+
+  add(true,'✅ Todo correcto. El sync está listo.');
+  setSyncDot('green','☁️ Firebase');
+  if(currentSeed) startFBSync();
+  toast('✅ Diagnóstico completado con éxito');
+});
+
+function showErr(msg){ $('cfg-err').innerHTML=msg; $('cfg-err').classList.remove('hidden'); }
+function buildErrMsg(err){
+  const m=err.message||'';
+  if(m.includes('auth/invalid-api-key')||m.includes('api-key')) return '❌ apiKey inválido. Verifica que lo copiaste bien desde la consola de Firebase.';
+  if(m.includes('permission-denied')||m.includes('PERMISSION_DENIED')) return '❌ Permiso denegado en Firestore. Asegúrate de haber publicado las reglas <code>allow read, write: if true</code>.';
+  if(m.includes('network')||m.includes('fetch')) return '❌ Error de red. Verifica tu conexión a internet.';
+  if(m.includes('projectId')) return '❌ projectId inválido o proyecto no encontrado.';
+  return '❌ ' + m;
+}
+
+// ──────────────────────────────────────────────────────
+// EXPORTAR / IMPORTAR
+// ──────────────────────────────────────────────────────
+$('btn-export').addEventListener('click', ()=>{
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify({seed:currentSeed,version:4,items,exported:Date.now()},null,2)],{type:'application/json'}));
+  a.download=`balatro_${currentSeed}_${Date.now()}.json`; a.click(); URL.revokeObjectURL(a.href); toast('💾 Exportado');
+});
+$('btn-import-btn').addEventListener('click', ()=>$('import-input').click());
+$('import-input').addEventListener('change', e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader(); r.onload=async ev=>{
+    try {
+      const d=JSON.parse(ev.target.result);
+      if(!Array.isArray(d.items)) throw new Error('Formato inválido');
+      if(!confirm(`¿Importar ${d.items.length} cartas? Se añadirán a las existentes.`)) return;
+      d.items.forEach(it=>{ it.id=uid(); it.x=(it.x||0)+40; it.y=(it.y||0)+40; it.timerRunning=false; });
+      items.push(...d.items);
+      for(const it of d.items) syncItem(it);
+      renderBoard(); updateCount(); toast(`✓ ${d.items.length} cartas importadas`);
+    } catch(err){ toast('❌ '+err.message); }
+  }; r.readAsText(f); e.target.value='';
+});
+
+// ──────────────────────────────────────────────────────
+// SALIR
+// ──────────────────────────────────────────────────────
+$('btn-exit').addEventListener('click', ()=>{ if(confirm('¿Salir? El progreso está guardado.')) location.reload(); });
+
+// ──────────────────────────────────────────────────────
+// ATAJOS DE TECLADO
+// ──────────────────────────────────────────────────────
+document.addEventListener('keydown', e=>{
+  const ctrl=e.ctrlKey||e.metaKey;
+  if(ctrl&&e.key==='n')  { e.preventDefault(); $('btn-add').click(); }
+  if(ctrl&&e.key==='f')  { e.preventDefault(); $('btn-srch').click(); }
+  if(ctrl&&e.key==='e')  { e.preventDefault(); $('btn-export').click(); }
+  if(ctrl&&e.key==='z')  { e.preventDefault(); doUndo(); }
+  if(ctrl&&e.key==='0')  { panScale=1; centerView(true); }
+  if(ctrl&&e.key==='=')  { panScale=Math.min(5,panScale*1.2); applyT(); }
+  if(ctrl&&e.key==='-')  { panScale=Math.max(.1,panScale*.8); applyT(); }
+  if(ctrl&&e.key==='a')  { e.preventDefault(); items.forEach(i=>selectedIds.add(i.id)); renderBoard(); toast(`☐ ${selectedIds.size} seleccionadas`); }
+  if(e.key==='Escape'){
+    $('modal-card').classList.add('hidden'); $('modal-sync').classList.add('hidden');
+    ['panel-srch','panel-sync','panel-settings'].forEach(id=>$(id).classList.add('hidden'));
+    selectedIds.clear(); renderBoard();
+  }
+  if(e.key==='Delete'&&selectedIds.size){
+    if(confirm(`¿Eliminar ${selectedIds.size} cartas seleccionadas?`)){
+      selectedIds.forEach(id=>removeItem(id)); selectedIds.clear(); renderBoard();
+    }
+  }
+});
+
+// ──────────────────────────────────────────────────────
+// UTILIDADES
+// ──────────────────────────────────────────────────────
+function updateCount(){ $('hud-count').textContent=items.length; }
+
+function toast(msg,dur=2400){
+  document.querySelectorAll('.toast').forEach(t=>t.remove());
+  const el=document.createElement('div'); el.className='toast'; el.textContent=msg;
+  document.body.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); },dur);
+}
+function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
+
+// Restaurar preferencias guardadas
+const savedBg = localStorage.getItem('balatro_bg')||'dots';
+board.className = savedBg==='lines'?'grid-lines':savedBg==='none'?'no-grid':'';
+
+// Init transform
+applyT();
+</script>
+</body>
+</html>
